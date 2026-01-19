@@ -48,7 +48,8 @@ app.post("/api/upload", upload.single("pdf"), async (req, res) => {
       docs,
       embeddings,
       {
-        url: "http://localhost:63418",
+        url:process.env.QDRANT_URL,
+        apiKey:process.env.QDRANT_API_KEY,
         collectionName: "user-collection",
       }
     );
@@ -70,7 +71,8 @@ app.post("/api/chat", async (req, res) => {
     const vectorStore = await QdrantVectorStore.fromExistingCollection(
       embeddings,
       {
-        url: "http://localhost:63418",
+        url:process.env.QDRANT_URL,
+        apiKey:process.env.QDRANT_API_KEY,
         collectionName: "user-collection",
       }
     );
@@ -82,7 +84,7 @@ app.post("/api/chat", async (req, res) => {
 
     const SYSTEM_PROMPT = `
     you are an AI assistant who helps resolving user query based on the content available to you from a pdf file with the content and page number.
-    only ans based on the availabe context from the file only.
+    only ans based on the availabe context from the file only.give short and precise response like you are a human and don't just send any big text
 
     Context: 
     ${JSON.stringify(relevantChunks)}

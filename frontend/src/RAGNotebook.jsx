@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import { Upload, Trash2, Settings, Send } from "lucide-react";
 import axios from "axios";
+ import { useClerk } from "@clerk/clerk-react";
 
 export default function RAGNotebook() {
   const [file, setFile] = useState(null);
   const [text, setText] = useState("");
+  const { signOut } = useClerk();
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -50,12 +52,14 @@ export default function RAGNotebook() {
     if (text) formData.append("text", text);
 
     try{
-      const res=await axios.post("http://localhost:3000/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if(res.success){
-        alert("data uploaded to knowledge base successfully");
+      const res=await axios.post("http://localhost:3000/api/upload", 
+        formData,
+        {
+          headers:{"Content-Type": "multipart/form-data"}
+        }
+      );
+      if(res.data.success){
+        alert(res.data.message);
       }
       else{
         alert("error uploading data");
@@ -74,15 +78,17 @@ export default function RAGNotebook() {
     setQuestion("");
 
     try {
-      const data = await axios.post("http://localhost:3000/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
-      });
+      const response = await axios.post("http://localhost:3000/api/chat", 
+        { question:question },
+        {headers: { "Content-Type": "application/json" }}
+      );
+      if(response.data.error){
+        console.log(error);
+      }
 
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.answer || "No response" },
+        { role: "assistant", content: response.data.answer || "No response" },
       ]);
     } catch (err) {
       console.error(err);
@@ -94,116 +100,149 @@ export default function RAGNotebook() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800">
-      {/* Top Bar */}
-      <header className="flex items-center justify-between px-6 py-4 border-b bg-white">
-        <div className="flex items-center gap-2 font-semibold text-lg">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
-            R
-          </div>
-          RAG Notebook
-        </div>
-        <div className="flex items-center gap-4">
-          <button className="flex items-center gap-1 text-gray-600 hover:text-gray-900">
-            <Settings size={18} /> Settings
-          </button>
-          <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
-            Save Session
-          </button>
-        </div>
-      </header>
+   <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-zinc-200">
 
-      <main className="grid grid-cols-2 gap-6 p-6">
-        <section className="bg-white rounded-xl border p-6 space-y-6">
-          <div>
-            <h2 className="font-semibold text-lg">Context & Knowledge Base</h2>
-            <p className="text-sm text-gray-500">
-              Add text content and upload PDFs to build your knowledge base
-            </p>
-          </div>
-
-          <div className="flex gap-3">
-            <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 cursor-pointer">
-              <Upload size={16} /> Upload PDF
-              <input type="file" accept="application/pdf" hidden onChange={handleFileChange} />
-            </label>
-            <button
-              onClick={handleClearAll}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100"
-            >
-              <Trash2 size={16} /> Clear All
-            </button>
-          </div>
-
-          {file && (
-            <div className="flex items-center justify-between bg-gray-50 px-4 py-3 rounded-lg border text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-red-500 font-semibold">PDF</span>
-                {file.name}
-                <span className="text-gray-400">
-                  {(file.size / 1024 / 1024).toFixed(2)} MB
-                </span>
-              </div>
-              <button onClick={() => setFile(null)}>✕</button>
-            </div>
-          )}
-
-          <div>
-            <h3 className="font-medium mb-2">Text Content</h3>
-            <textarea
-              className="w-full h-40 p-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="Add your text content here..."
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-            />
-            <div className="flex items-center justify-between mt-3">
-              <span className="text-xs text-gray-400">{text.length} characters</span>
-              <button
-                onClick={handleUploadToKnowledgeBase}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-              >
-                + Add to Knowledge Base
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="bg-white rounded-xl border p-6 flex flex-col">
-          <div className="mb-4">
-            <h2 className="font-semibold text-lg">AI Assistant Chat</h2>
-            <p className="text-sm text-gray-500">Ask questions about your uploaded content</p>
-          </div>
-
-          <div className="flex-1 space-y-4 overflow-y-auto">
-            {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`p-4 rounded-lg max-w-lg text-sm ${
-                  msg.role === "user"
-                    ? "bg-indigo-600 text-white ml-auto"
-                    : "bg-gray-100"
-                }`}
-              >
-                {msg.content}
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 flex items-center gap-2 border rounded-lg px-3 py-2">
-            <input
-              type="text"
-              className="flex-1 text-sm focus:outline-none"
-              placeholder="Ask a question about your content..."
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            />
-            <button onClick={handleSend} className="text-indigo-600 hover:text-indigo-800">
-              <Send size={18} />
-            </button>
-          </div>
-        </section>
-      </main>
+  {/* Top Bar */}
+  <header className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/80 backdrop-blur">
+    <div className="flex items-center gap-2 font-semibold text-lg text-white">
+      <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white flex items-center justify-center">
+        R
+      </div>
+      RAG Notebook
     </div>
+
+    <div className="flex items-center gap-4">
+      <button className="flex items-center gap-1 text-zinc-400 hover:text-white transition">
+        <Settings size={18} /> Settings
+      </button>
+      <button onClick={()=>signOut()} className="flex items-center gap-1 text-zinc-400 hover:text-white transition">
+        Logout
+      </button>
+     
+
+
+    </div>
+  </header>
+
+  <main className="grid grid-cols-2 gap-6 p-6">
+
+    {/* LEFT PANEL */}
+    <section className="bg-zinc-900/80 backdrop-blur rounded-xl border border-zinc-800 p-6 space-y-6 shadow-xl">
+
+      <div>
+        <h2 className="font-semibold text-lg text-white">Context & Knowledge Base</h2>
+        <p className="text-sm text-zinc-400">
+          Add text content and upload PDFs to build your knowledge base
+        </p>
+      </div>
+
+      <div className="flex gap-3">
+
+        <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-800 text-indigo-400 hover:bg-zinc-700 cursor-pointer transition">
+          <Upload size={16} /> Upload PDF
+          <input type="file" accept="application/pdf" hidden onChange={handleFileChange} />
+        </label>
+
+        <button
+          onClick={handleClearAll}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-800 text-red-400 hover:bg-zinc-700 transition"
+        >
+          <Trash2 size={16} /> Clear All
+        </button>
+
+      </div>
+
+      {file && (
+        <div className="flex items-center justify-between bg-zinc-800 px-4 py-3 rounded-lg border border-zinc-700 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-red-400 font-semibold">PDF</span>
+            {file.name}
+            <span className="text-zinc-400">
+              {(file.size / 1024 / 1024).toFixed(2)} MB
+            </span>
+          </div>
+          <button onClick={() => setFile(null)} className="text-zinc-400 hover:text-white">✕</button>
+        </div>
+      )}
+
+      <div>
+        <h3 className="font-medium mb-2 text-white">Text Content</h3>
+
+        <textarea
+          className="w-full h-40 p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          placeholder="Add your text content here..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+
+        <div className="flex items-center justify-between mt-3">
+          <span className="text-xs text-zinc-500">{text.length} characters</span>
+
+          <button
+            onClick={handleUploadToKnowledgeBase}
+            className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-lg hover:opacity-90 transition"
+          >
+            + Add to Knowledge Base
+          </button>
+        </div>
+
+      </div>
+
+    </section>
+
+    {/* RIGHT PANEL */}
+    <section className="bg-zinc-900/80 backdrop-blur rounded-xl border border-zinc-800 p-6 flex flex-col shadow-xl">
+
+      <div className="mb-4">
+        <h2 className="font-semibold text-lg text-white">AI Assistant Chat</h2>
+        <p className="text-sm text-zinc-400">
+          Ask questions about your uploaded content
+        </p>
+      </div>
+
+      <div className="flex-1 space-y-4 overflow-y-auto pr-2">
+
+        {messages.map((msg, idx) => (
+          <div
+            key={idx}
+            className={`p-4 rounded-lg max-w-lg text-sm shadow
+              ${
+                msg.role === "user"
+                  ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white ml-auto"
+                  : "bg-zinc-800 text-zinc-200"
+              }`}
+          >
+            {msg.content}
+          </div>
+        ))}
+
+      </div>
+
+      <div className="mt-4 flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2">
+
+        <input
+          type="text"
+          className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none"
+          placeholder="Ask a question about your content..."
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
+        />
+
+        <button
+          onClick={handleSend}
+          className="text-indigo-400 hover:text-indigo-300 transition"
+        >
+          <Send size={18} />
+        </button>
+
+      </div>
+
+    </section>
+
+  </main>
+
+</div>
+
   );
 }
